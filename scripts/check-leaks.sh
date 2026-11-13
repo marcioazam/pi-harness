@@ -58,6 +58,8 @@ scan_identifiers() { # args: paths...   (path:line:content printed; patterns nev
     echo "identifiers: file missing ($IDFILE). Create it or point PI_HARNESS_IDENTIFIERS at an (empty) file." >&2
     return 1
   fi
+  # Fail closed: without rg the scan below would report no hits (GitHub runners ship no ripgrep, 2026-11-13).
+  command -v rg >/dev/null 2>&1 || { echo "identifiers: rg (ripgrep) not installed" >&2; return 1; }
   local pat hits n=0 line p rest ln content a ap are ignored
   pat=$(mktemp); grep -v -e '^[[:space:]]*$' -e '^[[:space:]]*#' "$IDFILE" >"$pat" || true
   [ -s "$pat" ] || { rm -f "$pat"; return 0; }
