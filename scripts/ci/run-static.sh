@@ -50,7 +50,10 @@ mapfile -t TS < <(pick '^extensions/.*\.m?ts$')
 # managed layout in the ephemeral runner HOME with the repo's own installer (npm ci, scripts off).
 install_harness() {
   # Never relink a developer's real ~/.pi: locally run with CI=true HOME="$(mktemp -d)".
-  [ "${CI:-}" = true ] || { echo "install_harness: refusing outside CI (set CI=true with a throwaway HOME)" >&2; return 1; }
+  [ "${CI:-}" = true ] || {
+    echo "install_harness: refusing outside CI (set CI=true with a throwaway HOME)" >&2
+    return 1
+  }
   bash install.sh && bash install.sh --link --apply || return 1
 }
 
