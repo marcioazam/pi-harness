@@ -11,6 +11,7 @@ check:  falha (exit 1) se o total exceder o baseline, salvo rótulo
         `budget-increase` no PR (JSON de GITHUB_EVENT_PATH). Exit 2 = entrada inválida.
 update: regrava o baseline.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -19,6 +20,7 @@ import math
 import os
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 HOME = "claude-home"
 DEFAULT_BASELINE = Path(__file__).with_name("instruction_budget.baseline.json")
@@ -55,7 +57,9 @@ def measure(root: Path) -> dict[str, int]:
     if not (home / "CLAUDE.md").is_file():
         raise InputError(f"{home / 'CLAUDE.md'} não existe")
     files: dict[str, int] = {}
-    files[f"{HOME}/CLAUDE.md"] = tokens((home / "CLAUDE.md").read_text(encoding="utf-8"))
+    files[f"{HOME}/CLAUDE.md"] = tokens(
+        (home / "CLAUDE.md").read_text(encoding="utf-8")
+    )
     for p in sorted((home / "rules").glob("*.md")):
         files[f"{HOME}/rules/{p.name}"] = tokens(p.read_text(encoding="utf-8"))
     skills = sorted((home / "skills").glob("*/SKILL.md"))
@@ -66,14 +70,18 @@ def measure(root: Path) -> dict[str, int]:
     return files
 
 
-def load_baseline(path: Path) -> dict:
+def load_baseline(path: Path) -> dict[str, Any]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        if data["version"] != 1 or not isinstance(data["files"], dict) or not isinstance(data["total"], int):
+        if (
+            data["version"] != 1
+            or not isinstance(data["files"], dict)
+            or not isinstance(data["total"], int)
+        ):
             raise ValueError("formato")
     except (OSError, ValueError, KeyError, TypeError) as e:
         raise InputError(f"baseline inválido {path}: {e}") from e
-    return data
+    return cast("dict[str, Any]", data)
 
 
 def has_label(event: str | None) -> bool:
@@ -91,8 +99,13 @@ def cmd_check(a: argparse.Namespace) -> int:
     cur = measure(a.root)
     base = load_baseline(a.baseline)
     total = sum(cur.values())
-    deltas = {k: cur.get(k, 0) - base["files"].get(k, 0) for k in cur.keys() | base["files"].keys()}
-    print(f"tokens: {total} (baseline {base['total']}, delta {total - base['total']:+d})")
+    deltas = {
+        k: cur.get(k, 0) - base["files"].get(k, 0)
+        for k in cur.keys() | base["files"].keys()
+    }
+    print(
+        f"tokens: {total} (baseline {base['total']}, delta {total - base['total']:+d})"
+    )
     for k, d in sorted(deltas.items(), key=lambda kv: (-abs(kv[1]), kv[0]))[:10]:
         if d:
             print(f"  {d:+6d}  {k}")
@@ -101,14 +114,24 @@ def cmd_check(a: argparse.Namespace) -> int:
     if has_label(a.labels_from_event):
         print(f"excede o baseline, mas o rótulo {LABEL} está presente")
         return 0
-    print(f"FALHA: +{total - base['total']} tokens; reduza ou use o rótulo {LABEL} e rode `update`", file=sys.stderr)
+    print(
+        f"FALHA: +{total - base['total']} tokens; reduza ou use o rótulo {LABEL} e rode `update`",
+        file=sys.stderr,
+    )
     return 1
 
 
 def cmd_update(a: argparse.Namespace) -> int:
     cur = measure(a.root)
-    data = {"version": 1, "estimator": "bytes/3.5", "total": sum(cur.values()), "files": dict(sorted(cur.items()))}
-    a.baseline.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    data = {
+        "version": 1,
+        "estimator": "bytes/3.5",
+        "total": sum(cur.values()),
+        "files": dict(sorted(cur.items())),
+    }
+    a.baseline.write_text(
+        json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     print(f"baseline gravado: {data['total']} tokens, {len(cur)} arquivos")
     return 0
 
@@ -118,10 +141,14 @@ def main(argv: list[str] | None = None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name in ("check", "update"):
         sp = sub.add_parser(name)
-        sp.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2])
+        sp.add_argument(
+            "--root", type=Path, default=Path(__file__).resolve().parents[2]
+        )
         sp.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE)
         if name == "check":
-            sp.add_argument("--labels-from-event", default=os.environ.get("GITHUB_EVENT_PATH"))
+            sp.add_argument(
+                "--labels-from-event", default=os.environ.get("GITHUB_EVENT_PATH")
+            )
     a = ap.parse_args(argv)
     try:
         return cmd_check(a) if a.cmd == "check" else cmd_update(a)
